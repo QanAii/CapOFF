@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from .choices import BannerLocationEnum
 
@@ -77,7 +78,7 @@ class ProductBrand(models.Model):
 
 
 class Basket(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     total_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     def __str__(self):
@@ -95,7 +96,7 @@ class BasketItem(models.Model):
 
 
 class Like(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='likes')
 
     class Meta:

@@ -1,10 +1,12 @@
+from decimal import Decimal
+
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.generics import get_object_or_404
-from .models import Product, Banner, Brand, Like
+from .models import Product, Banner, Brand, Like, Basket, BasketItem
 from .serializers import ProductListSerializer, BannerListSerializer, BrandListSerializer, \
-    ProductDetailSerializer
+    ProductDetailSerializer, BasketItemAddSerializer, LikeListSerializer
 
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
@@ -67,3 +69,50 @@ class LikeView(APIView):
             return Response({'liked': False, 'likes_count': product.likes.count()}, status=status.HTTP_200_OK)
         else:
             return Response({'liked': True, 'likes_count': product.likes.count()}, status=status.HTTP_201_CREATED)
+
+    def get(self, request):
+        likes = Like.objects.filter(user=request.user).select_related('product')
+        serializer = LikeListSerializer(likes, many=True)
+        return Response(serializer.data)
+
+
+class BasketAddView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        print("DEBUG:", request.user, type(request.user))  # 👈 ВСТАВЬ ЭТО
+
+        serializer = BasketItemAddSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        storage = serializer.validated_data['storage']
+        quantity = serializer.validated_data['quantity']
+        quantity = int(quantity)
+        user = request.user
+
+        basket, _ = Basket.objects.get_or_create(user=user, defaults={"total_price": Decimal('0.00')})
+
+        basket_item, _ = BasketItem.objects.get_or_create(
+            basket=basket,
+            storage=storage,
+            defaults={"quantity": 0}
+        )
+
+        if basket_item.quantity + quantity > storage.quantity:
+            return Response({"error": "Недостаточно товара на складе"}, status=status.HTTP_400_BAD_REQUEST)
+
+        basket_item.quantity += quantity
+        basket_item.save()
+
+        price = storage.product.new_price if storage.product.new_price is not None else storage.product.old_price
+        price = Decimal(price)
+        basket.total_price += price * quantity
+        basket.save()
+
+        return Response({
+            "message": "Товар добавлен в корзину",
+            "basket_id": basket.id,
+            "item_id": basket_item.id,
+            "quantity": basket_item.quantity,
+            "total_price": float(basket.total_price)
+        }, status=status.HTTP_200_OK)

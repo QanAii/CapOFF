@@ -3,6 +3,8 @@ from itertools import product
 from PIL.ImageOps import cover
 from django.core.files.storage import storages
 from rest_framework import serializers
+from rest_framework.generics import get_object_or_404
+
 from .models import Product, Category, Brand, Banner, Size, Storage, Like
 
 
@@ -84,3 +86,14 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             for p in sims
         ]
 
+
+class BasketItemAddSerializer(serializers.Serializer):
+    storage_id = serializers.IntegerField()
+    quantity = serializers.IntegerField(min_value=1)
+
+    def validate(self, data):
+        storage = get_object_or_404(Storage, id=data['storage_id'])
+        if storage.quantity < data['quantity']:
+            raise serializers.ValidationError("Недостаточно товара на складе")
+        data['storage'] = storage
+        return data
